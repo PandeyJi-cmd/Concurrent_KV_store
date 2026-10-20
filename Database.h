@@ -27,7 +27,7 @@ struct Node {
     }
 }; // node
 
-struct Shard{
+struct alignas(64) Shard{
     std::mutex mtx;
     struct Node* head=nullptr;
     struct Node* tail=nullptr;
