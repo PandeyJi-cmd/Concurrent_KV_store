@@ -15,7 +15,8 @@ uint64_t now_ms() {
 void set(std::string& key,std::string value,uint64_t ttl_ms){
     Shard &s = get_shard(key);
     std::lock_guard<std::mutex> lock(s.mtx);
-    if(s.map.find(key) == s.map.end()){
+    auto it = s.map.find(key);
+    if( it == s.map.end()){
         Node * n = new Node(key,value,nullptr,nullptr);
         n->expire_ms = ttl_ms>0 ? now_ms()+ttl_ms : 0;
         s.map[key]=n;

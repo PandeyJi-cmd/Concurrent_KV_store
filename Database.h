@@ -1,11 +1,9 @@
 #ifndef DATABASE
 #define DATABASE
 
+constexpr int NUM_SHARDS = 16;
+constexpr uint64_t MAX_SIZE_PER_SHARD = 5ULL * 1024 * 1024;
 
-const int NUM_SHARDS =16;
-
-
-#define MAX_SIZE_PER_SHARD 5*1024*1024
 #include <string>
 #include <unordered_map>
 #include <shared_mutex>

@@ -8,5 +8,5 @@ RUN g++ -std=c++20 -O3 Server.cpp Database.cpp -o server -pthread
 FROM debian:bookworm-slim
 WORKDIR /app
 COPY --from=builder /build/server ./server
-EXPOSE 6379
+EXPOSE 9004
 CMD ["./server"]
