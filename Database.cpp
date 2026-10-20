@@ -13,58 +13,56 @@ uint64_t now_ms() {
 }
 
 void set(std::string& key,std::string value,uint64_t ttl_ms){
-    Shard &s = get_shard(key);
+    Shard& s = get_shard(key);
     std::lock_guard<std::mutex> lock(s.mtx);
+    uint64_t exp = ttl_ms > 0 ? now_ms() + ttl_ms : 0;
+
     auto it = s.map.find(key);
-    if( it == s.map.end()){
-        Node * n = new Node(key,value,nullptr,nullptr);
-        n->expire_ms = ttl_ms>0 ? now_ms()+ttl_ms : 0;
-        s.map[key]=n;
+    if (it == s.map.end()) {
+        Node* n = new Node(key, value, exp);
+        s.map.emplace(n->key, n);
         s.push_front(n);
+    } else {
+        Node* n1 = it->second;
+        s.unlink(n1);
+        n1->value = value;
+        n1->expire_ms = exp;
+        s.push_front(n1);
     }
-    else{
-       Node * n1 =s.map[key];
-       s.unlink(n1);
-       n1->value= value;
-       n1->expire_ms = ttl_ms > 0 ? ttl_ms + now_ms():0;
-       s.push_front(n1);
-    }
-    while(s.used_bytes>s.max_bytes && s.tail){
+    while (s.used_bytes > s.max_bytes && s.tail) {
         s.evict_node(s.tail);
     }
 }
 
 bool get(std::string &key,std::string&value){
-    Shard &s = get_shard(key);
+    Shard& s = get_shard(key);
     std::lock_guard<std::mutex> lock(s.mtx);
-    if(s.map.find(key) == s.map.end()){
+
+    auto it = s.map.find(key);
+    if (it == s.map.end()) {
         return false;
     }
-    else{
 
-        Node * n =s.map[key];
-        if(n->expire_ms!=0 && now_ms() > n->expire_ms){
-            s.evict_node(n);
-            return false;
-        }
-        s.unlink(n);
-        s.push_front(n);
-        
-        value = n->value;
-        return true;
+    Node* n = it->second;
+    if (n->expire_ms != 0 && now_ms() > n->expire_ms) {
+        s.evict_node(n);
+        return false;
     }
+    s.unlink(n);
+    s.push_front(n);
+    value = n->value;
+    return true;
 }
 bool del(std::string &key){
-    Shard &s =get_shard(key);
+    Shard& s = get_shard(key);
     std::lock_guard<std::mutex> lock(s.mtx);
-    if(s.map.find(key) != s.map.end()){
-        Node *n = s.map[key];
-        s.evict_node(n);
+
+    auto it = s.map.find(key);
+    if (it != s.map.end()) {
+        s.evict_node(it->second);
         return true;
     }
-    else{
-        return false;
-    }
+    return false;
 }
 
 std::string stats(){

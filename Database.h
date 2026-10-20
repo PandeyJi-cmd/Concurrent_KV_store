@@ -1,27 +1,22 @@
 #ifndef DATABASE
 #define DATABASE
 
-constexpr int NUM_SHARDS = 16;
-constexpr uint64_t MAX_SIZE_PER_SHARD = 5ULL * 1024 * 1024;
 
 #include <string>
 #include <unordered_map>
-#include <shared_mutex>
 #include <mutex>
 #include <array>
 #include <cstdint>
+constexpr int NUM_SHARDS = 16;
+constexpr uint64_t MAX_SIZE_PER_SHARD = 5ULL * 1024 * 1024;
 struct Node {
     std::string key;
     std::string value;
     uint64_t expire_ms;
     Node *prev =nullptr;
     Node *next =nullptr;
-    Node(std::string k1,std::string v,Node* p=nullptr,Node*r=nullptr){
-        key=k1;
-        value=v;
-        prev=p;
-        next=r;
-    }
+    Node(std::string& k1, std::string& v, uint64_t exp = 0)
+        : key(std::move(k1)), value(std::move(v)), expire_ms(exp) {}
     size_t byte_size() const{
         return sizeof(Node) + key.size() + value.size();
     }
@@ -31,7 +26,7 @@ struct alignas(64) Shard{
     std::mutex mtx;
     struct Node* head=nullptr;
     struct Node* tail=nullptr;
-    std::unordered_map<std::string,Node*>map;
+    std::unordered_map<std::string_view,Node*>map;
     uint64_t max_bytes=MAX_SIZE_PER_SHARD;
     uint64_t used_bytes=0;
     ~Shard(){

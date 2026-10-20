@@ -15,12 +15,13 @@
 #include <stdio.h>
 #include <sys/types.h>
 #include <signal.h>
+#include <atomic>
+
 #define MAX_EVENTS 1024 
 #define PORT_NU 9004
 #define MAX_CLIENT_BUF 65536
 
-bool stop_server = false;
-
+std::atomic<bool> stop_server{false};
 
 
 struct ClientState{
@@ -107,7 +108,9 @@ void worker_event(){
         return;
     }
     int val = 1;
-    setsockopt(listen_fd,SOL_SOCKET,SO_REUSEADDR | SO_REUSEPORT,&val,sizeof(val));
+    setsockopt(listen_fd,SOL_SOCKET,SO_REUSEADDR,&val,sizeof(val));
+    setsockopt(listen_fd,SOL_SOCKET,SO_REUSEPORT,&val,sizeof(val));
+    
     set_nonblocking(listen_fd);
 
     struct sockaddr_in addr{};
@@ -118,6 +121,7 @@ void worker_event(){
 
     if(bind(listen_fd,reinterpret_cast<const sockaddr*>(&addr),sizeof(addr))<0){
         perror("Server was not bounded to the Port.");
+        close(listen_fd);
         return;
     }
     if (listen(listen_fd, SOMAXCONN) < 0) {
@@ -164,7 +168,7 @@ void worker_event(){
                     struct sockaddr_in c_addr{};
                     socklen_t client_len = sizeof(c_addr);
                     int conn_fd;
-                    if((conn_fd =accept(listen_fd,reinterpret_cast<struct sockaddr*>(&c_addr),&client_len)<0)){
+                    if((conn_fd =accept(listen_fd,reinterpret_cast<struct sockaddr*>(&c_addr),&client_len))<0){
                         if(errno == EAGAIN || errno == EWOULDBLOCK){
                             break;
                         }
@@ -178,10 +182,11 @@ void worker_event(){
                     epoll_ctl(epollfd, EPOLL_CTL_ADD, conn_fd, &client_ev);
                     clients.try_emplace(conn_fd);
                 }
+                continue;
             }
             if(mask & (EPOLLERR | EPOLLHUP)){
                 close_client(c_fd);
-                break;
+                continue;
             }
             
             // else it is a client that wants some action to be done.
@@ -216,7 +221,7 @@ void worker_event(){
             }
             if(overflow) {
                 close_client(c_fd);
-                break;
+                continue;
             }
 
             size_t start = 0,pos=0;
@@ -230,7 +235,7 @@ void worker_event(){
                 st.in_buf.erase(0,start);
             }
 
-            if(!st.out_buf.empty() || (mask && EPOLLOUT)){
+            if(!st.out_buf.empty() || (mask & EPOLLOUT)){
                 if(!flush_client_output(epollfd,c_fd,st)){
                     close_conn=true;
                 }
@@ -263,13 +268,15 @@ void handle_shutdown(int){
 int main(){
     // create the thread pool to execute the worker loop.
     signal(SIGPIPE,SIG_IGN);
-    signal(SIGINT|SIGTERM,handle_shutdown);
+    signal(SIGINT,handle_shutdown);
+    signal(SIGTERM,handle_shutdown);
+
     unsigned int num_workers = 4;
     std::vector<std::thread>workers;
-    for(int i=0;i<num_workers;i++){
+    for(unsigned int i=0;i<num_workers;i++){
         workers.emplace_back(worker_event);
     }
-    for(int j=0;j<num_workers;j++){
+    for(unsigned int j=0;j<num_workers;j++){
         workers[j].join();
     }
     
