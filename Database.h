@@ -15,7 +15,7 @@ struct Node {
     uint64_t expire_ms;
     Node *prev =nullptr;
     Node *next =nullptr;
-    Node(std::string& k1, std::string& v, uint64_t exp = 0)
+    Node(std::string k1, std::string v, uint64_t exp = 0)
         : key(std::move(k1)), value(std::move(v)), expire_ms(exp) {}
     size_t byte_size() const{
         return sizeof(Node) + key.size() + value.size();

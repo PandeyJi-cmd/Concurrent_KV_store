@@ -19,13 +19,13 @@ void set(std::string& key,std::string value,uint64_t ttl_ms){
 
     auto it = s.map.find(key);
     if (it == s.map.end()) {
-        Node* n = new Node(key, value, exp);
+        Node* n = new Node(key, std::move(value), exp);
         s.map.emplace(n->key, n);
         s.push_front(n);
     } else {
         Node* n1 = it->second;
         s.unlink(n1);
-        n1->value = value;
+        n1->value = std::move(value);
         n1->expire_ms = exp;
         s.push_front(n1);
     }
